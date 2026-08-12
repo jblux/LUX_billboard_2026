@@ -49,6 +49,10 @@
   .upload-btn input { display:none; }
   .section-title { font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:#C9A876; margin:28px 0 14px; border-top:1px solid #EDEAE4; padding-top:20px; }
   .section-title:first-of-type { border-top:none; margin-top:0; padding-top:0; }
+  .step-box {
+    border:1.5px solid #D8CDBB; border-radius:12px; padding:18px 18px 4px; margin-bottom:22px; background:#FDFBF7;
+  }
+  .step-box .section-title { border-top:none; padding-top:0; margin-top:0; font-size:12px; line-height:1.5; }
   .download-btn {
     width:100%; padding:16px; background:#171310; color:#FAF7F2; border:none; border-radius:10px; font-size:15px;
     font-weight:600; letter-spacing:0.5px; cursor:pointer; margin-top:10px;
@@ -123,35 +127,43 @@
     <h1>Create Your Perfect Billboard Ad</h1>
     <p class="hint">Select your suite number from the dropdown list. Upload a photo using the recommended specifications. If you're connected to the internet, downloading the jpeg sends a file to Joe and to your local download folder. The QR code is generated automatically. Traffic generated from the QR code is directed to your LUX business directory listing so we can understand the ROI on the billboard investment. The ROI will determine if the billboard becomes a new permanent option in our marketing portfolio.</p>
 
-    <div class="section-title">Select Suite</div>
-    <div class="field">
-      <label>Suite Number</label>
-      <select id="suiteSelect"></select>
-      <div class="subnote">Pick a suite to automatically fill in that professional's name and Business Directory Link below. You can still edit the name afterward — the link stays locked to what's on file.</div>
+    <div class="step-box">
+      <div class="section-title">Step 1 – Select Suite from Dropdown</div>
+      <div class="field">
+        <label>Suite Number</label>
+        <select id="suiteSelect"></select>
+        <div class="subnote">Pick a suite to automatically fill in that professional's name and Business Directory Link below. You can still edit the name afterward — the link stays locked to what's on file.</div>
+      </div>
     </div>
 
-    <div class="section-title">Photo</div>
-    <div class="field">
-      <label>Photo</label>
-      <label class="upload-btn">
-        <img id="headshotThumb" src="">
-        <span id="headshotLabel">Click to upload photo…</span>
-        <input type="file" accept="image/*" id="headshotInput">
-      </label>
-      <div class="subnote">Headshot or photo of you working with client recommended.<br>For best results, use a square photo at least 600×600px, centered on the face — smaller or heavily cropped images may look pixelated or blurry once enlarged for the sign.</div>
+    <div class="step-box">
+      <div class="section-title">Step 2 – Upload Your Photo</div>
+      <div class="field">
+        <label>Photo</label>
+        <label class="upload-btn">
+          <img id="headshotThumb" src="">
+          <span id="headshotLabel">Click to upload photo…</span>
+          <input type="file" accept="image/*" id="headshotInput">
+        </label>
+        <div class="subnote">Headshot or photo of you working with client recommended.<br>For best results, use a square photo at least 600×600px, centered on the face — smaller or heavily cropped images may look pixelated or blurry once enlarged for the sign.<br>Uploaded photos are automatically cropped and optimized to fit the frame.</div>
+        <div class="field-warning" id="photoWarning"></div>
+      </div>
     </div>
 
-    <div class="section-title">Professional</div>
-    <div class="field"><label>Name (max length = 30)</label><input type="text" id="nameInput" maxlength="30" value="Taylor Payne"><div class="field-warning" id="nameWarning"></div></div>
-    <div class="field"><label>Title (max length = 50)</label><input type="text" id="titleInput" maxlength="50" value="Your Text or Title Here e.g.  Tanning"><div class="field-warning" id="titleWarning"></div></div>
-    <div class="field"><label>Business Directory Link (locked to selected suite)</label><input type="text" id="linkInput" value="https://luxsalontx.com/listing/taylor-salon-1113/" readonly></div>
+    <div class="step-box">
+      <div class="section-title">Step 3 – Enter Your Name, Title or Specialty as You Want it to Appear on the Billboard</div>
+      <div class="field"><label>Name (max length = 30)</label><input type="text" id="nameInput" maxlength="30" value="Taylor Payne"><div class="field-warning" id="nameWarning"></div></div>
+      <div class="field"><label>Title (max length = 50)</label><input type="text" id="titleInput" maxlength="50" value="Your Text or Title Here e.g.  Tanning"><div class="field-warning" id="titleWarning"></div></div>
+      <div class="field"><label>Business Directory Link (locked to selected suite)</label><input type="text" id="linkInput" value="https://luxsalontx.com/listing/taylor-salon-1113/" readonly></div>
+    </div>
 
-
-    <div class="section-title">Promotion</div>
-    <div class="field"><label>Promo Text (max length = 150)</label><input type="text" id="promoInput" maxlength="150" value="Promotion goes here. 10% off thru Aug 31. Use promo code XYZ123"><div class="field-warning" id="promoWarning"></div></div>
+    <div class="step-box">
+      <div class="section-title">Step 4 – Enter Any Promotion You'd Like to Run Through the End of November</div>
+      <div class="field"><label>Promo Text (max length = 150)</label><input type="text" id="promoInput" maxlength="150" value="Promotion goes here. 10% off thru Aug 31. Use promo code XYZ123"><div class="field-warning" id="promoWarning"></div></div>
+    </div>
 
     <div class="download-note">Your file will be downloaded to your machine and sent to LUX Salon Suites.</div>
-    <button class="download-btn" id="downloadBtn">Download JPEG (1504×416)</button>
+    <button class="download-btn" id="downloadBtn">STEP 5 - Download JPEG (1504×416)</button>
     <div class="status" id="status"></div>
     <div class="status" id="webhookStatus"></div>
 
@@ -243,9 +255,72 @@
       reader.readAsDataURL(file);
     });
   }
-  wireUpload('headshotInput', 'headshotThumb', 'headshotLabel', function(dataUrl) {
-    document.getElementById('headshotImg').style.backgroundImage = "url('" + dataUrl + "')";
+
+  // ---- Photo optimization: crops to a square favoring the upper portion (where
+  // faces usually sit), downscales oversized photos for performance, and warns
+  // if the source resolution is too low to look sharp once enlarged for the sign. ----
+  const PHOTO_TARGET_SIZE = 800;     // output is always a crisp, consistent square
+  const PHOTO_MIN_RECOMMENDED = 600; // matches the guidance text under the upload field
+
+  function optimizePhoto(dataUrl) {
+    return new Promise(function(resolve) {
+      const img = new Image();
+      img.onload = function() {
+        const srcW = img.naturalWidth;
+        const srcH = img.naturalHeight;
+        const side = Math.min(srcW, srcH);
+
+        // center horizontally; bias vertically toward the upper portion for portraits
+        const sx = (srcW - side) / 2;
+        const sy = srcH > srcW ? Math.max(0, (srcH - side) * 0.25) : (srcH - side) / 2;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = PHOTO_TARGET_SIZE;
+        canvas.height = PHOTO_TARGET_SIZE;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, sx, sy, side, side, 0, 0, PHOTO_TARGET_SIZE, PHOTO_TARGET_SIZE);
+
+        resolve({
+          dataUrl: canvas.toDataURL('image/jpeg', 0.92),
+          lowResolution: side < PHOTO_MIN_RECOMMENDED
+        });
+      };
+      img.onerror = function() {
+        resolve({ dataUrl: dataUrl, lowResolution: false });
+      };
+      img.src = dataUrl;
+    });
+  }
+
+  const headshotInputEl = document.getElementById('headshotInput');
+  const headshotThumbEl = document.getElementById('headshotThumb');
+  const headshotLabelEl = document.getElementById('headshotLabel');
+  const photoWarningEl = document.getElementById('photoWarning');
+
+  headshotInputEl.addEventListener('change', function() {
+    const file = headshotInputEl.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      headshotLabelEl.textContent = 'Optimizing ' + file.name + '…';
+      optimizePhoto(e.target.result).then(function(result) {
+        headshotThumbEl.src = result.dataUrl;
+        headshotThumbEl.style.display = 'block';
+        headshotLabelEl.textContent = file.name + ' — optimized for the frame';
+        document.getElementById('headshotImg').style.backgroundImage = "url('" + result.dataUrl + "')";
+        if (result.lowResolution) {
+          photoWarningEl.textContent = 'This photo is lower resolution than recommended and may look soft or pixelated once enlarged for the sign.';
+          photoWarningEl.classList.add('visible');
+        } else {
+          photoWarningEl.classList.remove('visible');
+        }
+      });
+    };
+    reader.readAsDataURL(file);
   });
+
   // initialize headshot thumb with current default
   document.getElementById('headshotThumb').src = document.getElementById('headshotImg').style.backgroundImage.slice(5,-2);
   document.getElementById('headshotThumb').style.display = 'block';
