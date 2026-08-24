@@ -1,0 +1,47 @@
+name: Sync LUX Suite Roster
+
+# Runs every day at 8:00 AM UTC (adjust the cron below for your preferred time —
+# cron schedules always run in UTC, not local time). You can also trigger it
+# manually from the Actions tab at any time via "Run workflow".
+on:
+  schedule:
+    - cron: '0 8 * * *'
+  workflow_dispatch: {}
+
+# Lets this workflow push commits back to the repo without a separate secret —
+# GitHub provides this token automatically, scoped only to this repository.
+permissions:
+  contents: write
+
+jobs:
+  update-roster:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Update roster from WordPress
+        id: update
+        run: python3 scripts/update_roster.py
+
+      - name: Commit and push if changed
+        run: |
+          if git diff --quiet -- index.html; then
+            echo "No changes to commit."
+          else
+            git config user.name "lux-roster-bot"
+            git config user.email "actions@github.com"
+            git add index.html
+            git commit -m "Auto-update suite roster from WordPress"
+            git push
+          fi
+
+      # If update_roster.py exited non-zero (fetch failed, or the file structure
+      # looked wrong), this step never runs and the whole workflow shows as
+      # failed — GitHub automatically emails repo watchers when a scheduled
+      # workflow fails, so a bad run won't go unnoticed.
