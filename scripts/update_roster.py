@@ -14,6 +14,9 @@ Exit codes:
   2 - fetched successfully but every listing failed to parse (suspicious —
       likely a site-side change) - nothing was written, to avoid publishing
       an empty roster
+  3 - fetched fewer listings than WordPress's own X-WP-Total header reports —
+      almost always a caching/CDN/security-plugin issue truncating the
+      response - nothing was written, to avoid publishing an incomplete roster
 """
 
 import json
@@ -34,8 +37,17 @@ SUITE_RE = re.compile(r"Find Me In Suite:\s*(\d+)\s*;")
 
 
 def fetch_all_listings():
-    """Fetch every published hp_listing item, following pagination."""
+    """Fetch every published hp_listing item, following pagination.
+
+    Also captures the X-WP-Total header WordPress always includes on this
+    endpoint — the true total count of published listings, independent of
+    pagination. Comparing this to what we actually received is how we catch
+    a caching layer or proxy silently truncating the response (a real
+    failure mode seen in production on this project — the request looked
+    successful, but far fewer listings came back than actually exist).
+    """
     listings = []
+    reported_total = None
     page = 1
     while True:
         url = f"{REST_ENDPOINT}?per_page=100&page={page}&status=publish"
@@ -44,6 +56,9 @@ def fetch_all_listings():
             with urllib.request.urlopen(req, timeout=30) as resp:
                 if resp.status != 200:
                     raise RuntimeError(f"Unexpected status {resp.status} from {url}")
+                if page == 1:
+                    total_header = resp.headers.get("X-WP-Total")
+                    reported_total = int(total_header) if total_header else None
                 batch = json.loads(resp.read().decode("utf-8"))
         except Exception as exc:
             raise RuntimeError(f"Failed to fetch {url}: {exc}") from exc
@@ -55,25 +70,24 @@ def fetch_all_listings():
             break
         page += 1
 
-    return listings
+    return listings, reported_total
 
 
 def extract_name_and_suite(item):
     """
-    Prefer proper REST meta fields (hp_name / hp_suite_number) if the site
-    exposes them; fall back to parsing the Yoast SEO description text, which
-    has proven reliable historically. Returns (name, suite) or (None, None)
-    if neither source yields usable data.
-    """
-    meta = item.get("meta") or {}
-    name = meta.get("hp_name")
-    suite = meta.get("hp_suite_number")
-    if name and suite:
-        return name.strip(), str(suite).strip()
+    Parses Name and Suite Number from the Yoast SEO description text
+    (e.g. "... Name: Jane Doe; ... Find Me In Suite: 123; ..."). This is the
+    same text format the WordPress XML export has always used, and has
+    proven reliable in production.
 
-    # Fallback: parse the Yoast description (present on yoast_head_json.description
-    # and mirrored in og_description); this is the same text format the WordPress
-    # XML export has always used.
+    Earlier versions of this script also tried the REST `meta` fields
+    (hp_name / hp_suite_number) as a first choice, on the theory that the
+    site might eventually expose them properly. In practice, once those
+    fields did start appearing in the API response, they turned out to hold
+    stale or incorrect values for some listings — silently producing WRONG
+    data (not missing data), which is worse than a clean fallback failure.
+    Given that risk, this now uses the Yoast text exclusively.
+    """
     yoast = item.get("yoast_head_json") or {}
     description = yoast.get("description") or yoast.get("og_description") or ""
 
@@ -153,10 +167,25 @@ def update_index_file(path, new_roster_js):
 
 def main():
     try:
-        listings = fetch_all_listings()
+        listings, reported_total = fetch_all_listings()
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
+
+    print(f"WordPress reports {reported_total if reported_total is not None else 'an unknown'} "
+          f"total published listing(s); this run received {len(listings)}.")
+
+    # If the site tells us how many listings actually exist and we got noticeably
+    # fewer, something between us and WordPress (a cache, CDN, or security plugin)
+    # is truncating the response — this is exactly the failure mode that silently
+    # dropped several real people from the roster in production. Fail loudly
+    # instead of publishing a roster we know is incomplete.
+    if reported_total is not None and len(listings) < reported_total:
+        print(f"ERROR: expected {reported_total} listing(s) per WordPress's X-WP-Total header, "
+              f"but only received {len(listings)}. This usually means a cache, CDN, or security "
+              f"plugin in front of the site is serving a stale/partial response to this request. "
+              f"Refusing to update {INDEX_FILE} with incomplete data.", file=sys.stderr)
+        sys.exit(3)
 
     roster, skipped = build_roster(listings)
 
